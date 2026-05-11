@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <sstream>
 #include <cmath>
+#include <cctype>
 
 using namespace std;
 
@@ -71,6 +72,106 @@ string readLine(const string& prompt) {
     string s;
     getline(cin, s);
     return s;
+}
+
+// Read an integer that cannot be negative
+int readNonNegativeInt(const string& prompt) {
+    while (true) {
+        int value = readInt(prompt);
+        if (value >= 0) return value;
+        cout << "Value cannot be negative. Try again.\n";
+    }
+}
+
+bool isLeapYear(int year) {
+    return (year % 400 == 0) || (year % 4 == 0 && year % 100 != 0);
+}
+
+int daysInMonth(int year, int month) {
+    if (month == 2) return isLeapYear(year) ? 29 : 28;
+    if (month == 4 || month == 6 || month == 9 || month == 11) return 30;
+    return 31;
+}
+
+// Checks for YYYY-MM-DD and a real month/day combination
+bool isValidDate(const string& date) {
+    if (date.size() != 10 || date[4] != '-' || date[7] != '-') return false;
+
+    for (size_t i = 0; i < date.size(); ++i) {
+        if (i == 4 || i == 7) continue;
+        if (!isdigit(static_cast<unsigned char>(date[i]))) return false;
+    }
+
+    int year = stoi(date.substr(0, 4));
+    int month = stoi(date.substr(5, 2));
+    int day = stoi(date.substr(8, 2));
+
+    if (year < 1 || month < 1 || month > 12) return false;
+    return day >= 1 && day <= daysInMonth(year, month);
+}
+
+string readDate(const string& prompt) {
+    while (true) {
+        string date = readLine(prompt);
+        if (isValidDate(date)) return date;
+        cout << "Invalid date. Use YYYY-MM-DD, like 2026-01-31.\n";
+    }
+}
+
+bool validateShootingStats(const GameStats& g, string& errorMessage) {
+    if (g.fgm > g.fga) {
+        errorMessage = "FGM cannot be greater than FGA.";
+        return false;
+    }
+    if (g.threem > g.threea) {
+        errorMessage = "3PM cannot be greater than 3PA.";
+        return false;
+    }
+    if (g.ftm > g.fta) {
+        errorMessage = "FTM cannot be greater than FTA.";
+        return false;
+    }
+    if (g.threem > g.fgm) {
+        errorMessage = "3PM cannot be greater than FGM.";
+        return false;
+    }
+    if (g.threea > g.fga) {
+        errorMessage = "3PA cannot be greater than FGA.";
+        return false;
+    }
+
+    return true;
+}
+
+bool validateGameStats(const GameStats& g, string& errorMessage) {
+    if (!isValidDate(g.date)) {
+        errorMessage = "Date must use a real YYYY-MM-DD date.";
+        return false;
+    }
+
+    if (g.points < 0 || g.rebounds < 0 || g.assists < 0 || g.steals < 0 || g.blocks < 0 ||
+        g.fgm < 0 || g.fga < 0 || g.threem < 0 || g.threea < 0 || g.ftm < 0 || g.fta < 0) {
+        errorMessage = "Stats cannot be negative.";
+        return false;
+    }
+
+    return validateShootingStats(g, errorMessage);
+}
+
+void readShootingStats(GameStats& g) {
+    while (true) {
+        g.fgm = readNonNegativeInt("Field goals made (FGM): ");
+        g.fga = readNonNegativeInt("Field goals attempted (FGA): ");
+        g.threem = readNonNegativeInt("3-pointers made (3PM): ");
+        g.threea = readNonNegativeInt("3-pointers attempted (3PA): ");
+        g.ftm = readNonNegativeInt("Free throws made (FTM): ");
+        g.fta = readNonNegativeInt("Free throws attempted (FTA): ");
+
+        string errorMessage;
+        if (validateShootingStats(g, errorMessage)) return;
+        cout << "Invalid shooting stats: " << errorMessage << "\n";
+        cout << "Please re-enter the shooting stats.\n";
+    }
 }
 
 // ======================================================
@@ -148,28 +249,18 @@ int selectPlayer(const vector<Player>& players) {
 // Enter a single game's stats interactively and append to player's games
 void enterGameForPlayer(Player& p) {
     GameStats g;
-    cout << "\nEntering new game for " << p.name << ". Use YYYY-MM-DD for date.\n"<<endl;
-    g.date = readLine("Date (YYYY-MM-DD): ");
-    g.points = readInt("Points: ");
-    g.rebounds = readInt("Rebounds: ");
-    g.assists = readInt("Assists: ");
-    g.steals = readInt("Steals: ");
-    g.blocks = readInt("Blocks: ");
-    g.fgm = readInt("Field goals made (FGM): ");
-    g.fga = readInt("Field goals attempted (FGA): ");
-    g.threem = readInt("3-pointers made (3PM): ");
-    g.threea = readInt("3-pointers attempted (3PA): ");
-    g.ftm = readInt("Free throws made (FTM): ");
-    g.fta = readInt("Free throws attempted (FTA): ");
+    cout << "\nEntering new game for " << p.name << ". Use YYYY-MM-DD for date.\n";
 
-    // Basic validation: ensure subcounts don't exceed totals
-    if (g.threem > g.fgm) {
-        cout << "Warning: 3PM > FGM. Adjusting FGM to be at least 3PM.\n";
-        g.fgm = g.threem;
-    }
+    g.date = readDate("Date (YYYY-MM-DD): ");
+    g.points = readNonNegativeInt("Points: ");
+    g.rebounds = readNonNegativeInt("Rebounds: ");
+    g.assists = readNonNegativeInt("Assists: ");
+    g.steals = readNonNegativeInt("Steals: ");
+    g.blocks = readNonNegativeInt("Blocks: ");
+    readShootingStats(g);
 
     p.games.push_back(g);
-    cout << "Game added for " << p.name << " (" << g.date << ").\n"<<endl;
+    cout << "Game added for " << p.name << " (" << g.date << ").\n";
 }
 
 // Edit an existing game for a player by index (1-based shown to user)
@@ -184,8 +275,8 @@ void editGame(Player& p) {
     if (idx == 0) return;
     if (idx < 1 || idx >(int)p.games.size()) { cout << "Invalid game number.\n"; return; }
 
-    GameStats& g = p.games[idx - 1];
-    cout << "Editing Game " << idx << " (" << g.date << "). Press enter to keep current value.\n";
+    GameStats updatedGame = p.games[idx - 1];
+    cout << "Editing Game " << idx << " (" << updatedGame.date << "). Press enter to keep current value.\n";
 
     // Helper lambda: read an int or keep current by empty line
     auto readIntKeep = [&](const string& prompt, int& field) {
@@ -193,27 +284,49 @@ void editGame(Player& p) {
         string line; getline(cin, line);
         if (line.empty()) return; // keep current
         stringstream ss(line);
-        int v; if (ss >> v) field = v;
-        else cout << "Invalid input; keeping previous value.\n"<<endl;
+        int v;
+        if (!(ss >> v)) {
+            cout << "Invalid input; keeping previous value.\n";
+        }
+        else if (v < 0) {
+            cout << "Value cannot be negative; keeping previous value.\n";
+        }
+        else {
+            field = v;
+        }
         };
 
-    cout << "Date (current " << g.date << "): "<<endl;
+    cout << "Date (current " << updatedGame.date << "): ";
     string newDate; getline(cin, newDate);
-    if (!newDate.empty()) g.date = newDate;
+    if (!newDate.empty()) {
+        if (isValidDate(newDate)) {
+            updatedGame.date = newDate;
+        }
+        else {
+            cout << "Invalid date; keeping previous value.\n";
+        }
+    }
 
-    readIntKeep("Points", g.points);
-    readIntKeep("Rebounds", g.rebounds);
-    readIntKeep("Assists", g.assists);
-    readIntKeep("Steals", g.steals);
-    readIntKeep("Blocks", g.blocks);
-    readIntKeep("FGM", g.fgm);
-    readIntKeep("FGA", g.fga);
-    readIntKeep("3PM", g.threem);
-    readIntKeep("3PA", g.threea);
-    readIntKeep("FTM", g.ftm);
-    readIntKeep("FTA", g.fta);
+    readIntKeep("Points", updatedGame.points);
+    readIntKeep("Rebounds", updatedGame.rebounds);
+    readIntKeep("Assists", updatedGame.assists);
+    readIntKeep("Steals", updatedGame.steals);
+    readIntKeep("Blocks", updatedGame.blocks);
+    readIntKeep("FGM", updatedGame.fgm);
+    readIntKeep("FGA", updatedGame.fga);
+    readIntKeep("3PM", updatedGame.threem);
+    readIntKeep("3PA", updatedGame.threea);
+    readIntKeep("FTM", updatedGame.ftm);
+    readIntKeep("FTA", updatedGame.fta);
 
-    cout << "Game updated.\n"<<endl;
+    string errorMessage;
+    if (!validateGameStats(updatedGame, errorMessage)) {
+        cout << "Game update cancelled: " << errorMessage << "\n";
+        return;
+    }
+
+    p.games[idx - 1] = updatedGame;
+    cout << "Game updated.\n";
 }
 
 // Delete a game by number (1-based)
@@ -397,16 +510,7 @@ void loadAllPlayersFromFile(vector<Player>& players, const string& filename = "p
     players.clear();
     size_t numPlayers = 0;
     in >> numPlayers;
-    clearInputLine(); // consume '\n' after number
-    for (size_t i = 0; i < numPlayers; ++i) {
-        Player p;
-        p.name = readLine(">> (loading) temporary read to sync - not used"); // workaround - we'll actually read from stream
-        // The above line is a placeholder to align with console IO; we'll instead read directly from 'in'
-    }
-    // Reset and do proper reading without mixing cin/getline and ifstream
-    in.clear();
-    in.seekg(0);
-    in >> numPlayers;
+
     string dummy;
     getline(in, dummy); // consume rest of first line
 
@@ -562,19 +666,23 @@ int main() {
             break;
 
         case 6:
-            cout << "\n=== Quick Player Summary ===\n" << endl;
+            cout << "\n=== Quick Player Summary ===\n";
+            if (players.empty()) {
+                cout << "No players available.\n";
+            }
             for (const auto& p : players) {
-                cout << p.name << " - Games: " << p.games.size() << endl;
+                cout << p.name << " - Games: " << p.games.size();
                 if (!p.games.empty()) {
-                    cout << ", PPG: " << fixed << setprecision(2)
-                        << ([&]() {
+                    double ppg = [&]() {
                         double totalPts = 0;
                         for (const auto& g : p.games) totalPts += g.points;
                         return totalPts / p.games.size();
-                            }());
-                    cout << ", PER: " << simplePER(p) << endl;
+                        }();
+                    cout << fixed << setprecision(2)
+                        << ", PPG: " << ppg
+                        << ", PER: " << simplePER(p);
                 }
-                cout << '\n' << endl;
+                cout << '\n';
             }
             break;
 
